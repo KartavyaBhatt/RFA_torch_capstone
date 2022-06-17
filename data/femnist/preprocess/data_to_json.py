@@ -88,5 +88,8 @@ for (w, l) in writers:
         with open(file_path, 'w') as outfile:
             json.dump(all_data, outfile)
 
+        users[json_index] = []
+        num_samples[json_index] = []
+        user_data[json_index] = {}
         writer_count = 0
         json_index += 1

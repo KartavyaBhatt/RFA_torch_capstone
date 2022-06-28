@@ -1,11 +1,17 @@
 import json
 import os
 import numpy as np
-from .language_utils import word_to_indices, letter_to_vec,\
-        bag_of_words, get_word_emb_arr, val_to_vec, split_line, \
-        letter_to_idx
+from torchvision import transforms
+from tqdm import tqdm
+from PIL import Image
+from sklearn.model_selection import train_test_split
+
+# from .language_utils import word_to_indices, letter_to_vec, \
+#     bag_of_words, get_word_emb_arr, val_to_vec, split_line, \
+#     letter_to_idx
 
 # TODO: capitalize global vars names and initialize to None
+
 VOCAB_DIR = 0
 emb_array = 0
 vocab = 0
@@ -24,7 +30,7 @@ def batch_data(data, batch_size, rng=None, shuffle=True, eval_mode=False, full=F
     if shuffle:
         assert rng is not None
         rng.shuffle(raw_x_y)
-    raw_x, raw_y = zip(*raw_x_y)
+    raw_x, raw_y = map(list, zip(*raw_x_y))
     batched_x, batched_y = [], []
     if not full:
         for i in range(0, len(raw_x), batch_size):
@@ -88,8 +94,8 @@ def read_data(train_data_dir, test_data_dir, split_by_user=True, dataset="femnis
         test_data.update(cdata['user_data'])
     # END Old version
 
-    #counter = 0
-    #for f in train_files:
+    # counter = 0
+    # for f in train_files:
     #    file_path = os.path.join(train_data_dir, f)
     #    with open(file_path, 'r') as inf:
     #        cdata = json.load(inf)
@@ -101,7 +107,7 @@ def read_data(train_data_dir, test_data_dir, split_by_user=True, dataset="femnis
     #    if counter == 50:
     #        break
 
-    #clients = [list(train_data.keys()). list(test_data.keys())]
+    # clients = [list(train_data.keys()). list(test_data.keys())]
     if split_by_user:
         clients = {
             'train_users': list(train_data.keys()),
@@ -115,9 +121,74 @@ def read_data(train_data_dir, test_data_dir, split_by_user=True, dataset="femnis
     return clients, groups, train_data, test_data
 
 
+def read_data_new(train_data_dirs, test_data_dirs):
+    """parses data in given train and test data directories
+
+    assumes:
+    - the data in the input directories are .json files with
+        keys 'users' and 'user_data'
+    - the set of train set users is the same as the set of test set users
+
+    Return:
+        clients: list of client ids
+        groups: list of group ids; empty list if none found
+        train_data: dictionary of train data
+        test_data: dictionary of test data
+    """
+    clientIDs = [0, 1, 2, 5, 10, 20]
+    train_data = []
+    test_data = []
+    train_data_dirs = ['/home/kb8077/RFA_torch_capstone/data/traffic_sign/train/',
+                 '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss1/',
+                 '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss2/',
+                 '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss5/',
+                 '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer256loss10/',
+                 '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer512loss20/']
+
+    preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+
+    for train_data_dir in tqdm(train_data_dirs, desc='Setting up clients'):
+        train_class_dirs = os.listdir(train_data_dir)
+        imgs = []
+        labels = []
+        for d in train_class_dirs:
+            train_files = os.listdir(os.path.join(train_data_dir, d))
+            train_files = [f for f in train_files if f.endswith('.jpg')]
+
+            for f in train_files:
+                file_path = os.path.join(train_data_dir, d, f)
+                x = Image.open(file_path)
+                try:
+                    np.array(x)
+                    imgs.append(preprocess(x))
+                except OSError as error:
+                    continue
+                labels.append(1 if d == 'stop_signs' else 0)
+        X_train, X_test, y_train, y_test = train_test_split(imgs, labels, test_size=0.33, random_state=42)
+        train_data.append({'x': X_train, 'y': y_train})
+        test_data.append({'x': X_test, 'y': y_test})
+
+
+    # test_class_files = os.listdir(test_data_dir)
+    # for d in test_class_files:
+    #     test_files = os.listdir(os.path.join(test_data_dir, d))
+    #     test_files = [f for f in test_files if f.endswith('.jpg')]
+    #     for f in tqdm(test_files, desc='Reading test data'):
+    #         file_path = os.path.join(test_data_dir, d, f)
+    #         x = Image.open(file_path)
+    #         test_data['x'].append(np.array(x))
+    #         test_data['y'].append(1 if d == 'stop_signs' else 0)
+
+    return clientIDs, train_data, test_data
+
+
 def preprocess_data_x(list_inputs, dataset='femnist', center=False,
                       model_name=None):
-
     if dataset == 'femnist':
         if center:
             res = np.array(list_inputs) - np.tile(np.mean(list_inputs, axis=0), (len(list_inputs), 1))  # center data
@@ -140,7 +211,7 @@ def preprocess_data_y(list_labels, dataset='femnist', model_name=None):
         # return labels as is
         return list_labels
         # return femnist_preprocess_y_int(list_labels)
-    elif dataset == 'femnist': # one hot preprocess
+    elif dataset == 'femnist':  # one hot preprocess
         return femnist_preprocess_y_onehot(list_labels)
     elif dataset == 'shakespeare':
         return shakespeare_preprocess_y(list_labels)
@@ -156,6 +227,7 @@ def femnist_preprocess_y_onehot(raw_y_batch):
         res.append(num)
     return res
 
+
 def shakespeare_preprocess_x(raw_x_batch):
     x_batch = [[letter_to_idx(l) for l in x] for x in raw_x_batch]
     return x_batch
@@ -164,17 +236,6 @@ def shakespeare_preprocess_x(raw_x_batch):
 def shakespeare_preprocess_y(raw_y_batch):
     y_batch = [letter_to_idx(c) for c in raw_y_batch]
     return y_batch
-
-## OLD: 
-# def shakespeare_preprocess_x(raw_x_batch):
-#     x_batch = [word_to_indices(word) for word in raw_x_batch]
-#     x_batch = np.array(x_batch)
-#     return x_batch
-# 
-# 
-# def shakespeare_preprocess_y(raw_y_batch):
-#     y_batch = [letter_to_vec(c) for c in raw_y_batch]
-#     return y_batch
 
 
 def sent140_preprocess_x(X):
@@ -195,3 +256,12 @@ def sent140_preprocess_y(raw_y_batch):
     for i in range(len(raw_y_batch)):
         res.append(float(raw_y_batch[i]))
     return res
+
+# if __name__ == '__main__':
+#     trainDirs = ['/home/kb8077/RFA_torch_capstone/data/traffic_sign/train/',
+#                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss1/',
+#                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss2/',
+#                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss5/',
+#                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer256loss10/',
+#                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer512loss20/']
+#     read_data_new(trainDirs, '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation/')

@@ -48,7 +48,8 @@ def writer_print_metrics(
         current_client = {
             'client_id': c_id,
             'round_number': round_number,
-            'hierarchy': ','.join(hierarchies.get(c_id, [])),
+            # 'hierarchy': ','.join(hierarchies.get(c_id, [])),
+            'hierarchy' : 'N/A',
             'num_samples': num_samples.get(c_id, np.nan)
         }
 

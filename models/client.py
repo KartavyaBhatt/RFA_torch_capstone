@@ -38,7 +38,7 @@ class Client:
         else:
             frac = min(1.0, minibatch)
             num_data = max(1, int(frac * len(self.train_data['x'])))
-            # TODO: fix smapling from lists
+            # TODO: fix sampling from lists
             xs, ys = zip(*self.rng.sample(list(zip(self.train_data['x'], self.train_data['y'])), num_data))
             data = {'x': xs, 'y': ys}
             comp, update, averaged_loss = self.model.train(data, num_epochs, num_data, lr)

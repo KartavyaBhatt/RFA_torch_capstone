@@ -15,6 +15,11 @@ MAIN_PARAMS = {  # (tot_num_rounds, eval_every_num_rounds, clients_per_round)
         'small': (6, 2, 2),
         'medium': (8, 2, 2),
         'large': (100, 1, 10000)
+    },
+    'trafficsign': {
+        'small': (10, 1, 6),
+        'medium': (10, 1, 6),
+        'large': (10, 1, 6)
     }
 }
 
@@ -40,6 +45,8 @@ MODEL_PARAMS = {
     'sent140.erm_log_reg': (0.001, 2, round(1e9)),
     'sent140.rsm_log_reg': (0.1, 2, round(1e9)),  # lr, num_classes, max_batch_size
     'sent140.erm_lstm_log_reg': (0.0003, 2, round(1e9)),  # lr, seq_len, num_classes, max_batch_size
+    # Traffic sign
+    'trafficsign.erm_cnn_log_reg': (2e-2, 2, 10)
 }
 
 MAX_UPDATE_NORM = 100000  # reject all updates larger than this amount

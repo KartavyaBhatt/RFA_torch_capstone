@@ -32,7 +32,7 @@ from client import Client
 from model import ServerModel
 from server import Server
 from utils.constants import DATASETS
-from utils.model_utils import read_data, preprocess_data_x, preprocess_data_y, batch_data
+from utils.model_utils import read_data, preprocess_data_x, preprocess_data_y, batch_data, read_data_new
 from metrics.writer import writer_print_metrics, writer_get_metrics_names
 
 STAT_METRICS_PATH = 'metrics/stat_metrics.csv'
@@ -91,7 +91,7 @@ def main():
     server = Server(server_model)
 
     # Create clients
-    clients, corrupted_client_ids = setup_clients(args.dataset, model_name=args.model,
+    clients, _ = setup_clients_new(args.dataset, model_name=args.model,
                                                   model=client_model, validation=args.validation,
                                                   corruption=args.corruption, fraction_corrupt=args.fraction_corrupt,
                                                   seed=args.seed, split_by_user=args.split_by_user,
@@ -111,7 +111,7 @@ def main():
     if (
             (args.dataset == 'sent140' and args.model in ['erm_lstm_log_reg'])
         or (args.dataset == 'shakespeare' and args.model in
-            ['erm_lstm_log_reg'])
+            ['erm_lstm_log_reg']) or args.dataset == 'femnist' or args.dataset == 'trafficsign'
     ):
         print('Data is not normalized here')
         # no normalizing performed here
@@ -125,7 +125,7 @@ def main():
         mean_train = data['mean']
         std_train = data['mean']
 
-        dataset_file_constants_test = 'dataset_constants/' + args.dataset + '_train_mean_std'
+        dataset_file_constants_test = 'dataset_constants/' + args.dataset + '_test_mean_std'
         with open(dataset_file_constants_test) as json_file:
             data = json.load(json_file)
         mean_test = data['mean']
@@ -238,14 +238,14 @@ def main():
                 print('Abnormal loss encountered. Diagnostics:')
                 print('all average loss:', ['{:.3f}'.format(l) for l in losses])
                 print('selected_clients:', [c.id for c in server.selected_clients])
-                print('corrupted_clients:', corrupted_client_ids)
+                # print('corrupted_clients:', corrupted_client_ids)
 
             # Update server model
 
             total_num_comm_rounds, is_updated = server.update_model(
                 aggregation=args.aggregation,
                 corruption=args.corruption,
-                corrupted_client_ids=corrupted_client_ids,
+                # corrupted_client_ids=corrupted_client_ids,
                 maxiter=args.weiszfeld_maxiter,
                 fraction_to_discard=args.fraction_to_discard,
                 norm_bound=args.norm_bound
@@ -445,6 +445,51 @@ def parse_args():
         print('Random seed not provided. Using {} as seed'.format(args.seed))
     return args
 
+def setup_clients_new(dataset, model_name=None, model=None, validation=False, corruption=None, fraction_corrupt=0.1, seed=-1,
+                  split_by_user=True, subsample_fraction=0.5, data_dir=None):
+    """Instantiates clients based on given train and test data directories.
+        If validation is True, use part of training set as validation set
+
+    Return:
+        all_clients: list of Client objects.
+    """
+    if data_dir is None:
+        data_dir = '..'
+    else:
+        print('Loading data from path:', data_dir)
+    train_data_dirs = []
+    test_data_dirs = []
+    train_data_dir = os.path.join(data_dir, 'data', dataset, 'data', 'train')
+    test_data_dir = os.path.join(data_dir, 'data', dataset, 'data', 'test')
+
+    clients, train_data, test_data = read_data_new(train_data_dirs, test_data_dirs)
+    if seed != -1:
+        np.random.seed(seed)
+    else:
+        np.random.seed(42)
+
+    # every client is used for training when split_by_user is False
+    train_clients = []
+    for client, trainData, testData in zip(clients, train_data, test_data):
+        # TODO: skip preprocess if necessary
+        # train_data_u_x = preprocess_data_x(train_data[u]['x'], dataset=dataset, model_name=model_name)
+        # train_data_u_y = preprocess_data_y(train_data[u]['y'], dataset=dataset, model_name=model_name)
+        # test_data_u_x = preprocess_data_x(test_data[u]['x'], dataset=dataset, model_name=model_name)
+        # test_data_u_y = preprocess_data_y(test_data[u]['y'], dataset=dataset, model_name=model_name)
+
+        # train_data_u = {'x': train_data_u_x, 'y': train_data_u_y}
+        # test_data_u = {'x': test_data_u_x, 'y': test_data_u_y}
+
+        train_clients.append(Client(client_id=client, group=None, train_data=trainData, eval_data=testData, model=model, dataset=dataset))
+    # all_clients = [Client(u, g, train_data[u], test_data[u], model) for u, g in zip(users, groups)] # old code
+    # corrupted_clients = apply_corruption_all(train_clients, dataset, corruption, fraction_corrupt, seed)
+
+    all_clients = {
+        'train_clients':train_clients
+    }
+
+    return all_clients, None
+
 
 def setup_clients(dataset, model_name=None, model=None, validation=False, corruption=None, fraction_corrupt=0.1, seed=-1,
                   split_by_user=True, subsample_fraction=0.5, data_dir=None):
@@ -505,7 +550,7 @@ def setup_clients(dataset, model_name=None, model=None, validation=False, corrup
     # subsample
         if dataset == 'femnist':
             rng_sub = random.Random(25)
-            users = rng_sub.sample(users, 1000)
+            # users = rng_sub.sample(users, 1000)
             train_data = {u: p for (u, p) in train_data.items() if u in users}
             test_data = {u: p for (u, p) in test_data.items() if u in users}
             print('Subsampled number of users:', len(train_data))

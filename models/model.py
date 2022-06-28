@@ -87,8 +87,7 @@ class Model(ABC):
         self.optimizer.update_w()
 
         comp = num_epochs * len(batched_y) * batch_size * self.flops
-        parameters_norm = np.linalg.norm(self.optimizer.w)
-        return comp, update, averaged_loss, parameters_norm
+        return comp, update, averaged_loss
 
     def test(self, eval_data, train_data=None, split_by_user=True, train_users=True):
         # `train_users` is not used for split_by_sample

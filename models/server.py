@@ -75,14 +75,14 @@ class Server:
             if lr is not None:
                 c._model.optimizer.learning_rate = lr
 
-            comp, num_samples, averaged_loss, update, updated_norm = c.train(num_epochs, batch_size, minibatch, lr)
+            comp, num_samples, averaged_loss, update = c.train(num_epochs, batch_size, minibatch, lr)
             sys_metrics[c.id][LOCAL_COMPUTATIONS_KEY] = comp
             losses.append(averaged_loss)
 
             self.updates.append((num_samples, update))
             sys_metrics[c.id][BYTES_WRITTEN_KEY] += self.model.size
             from numpy import linalg as LA
-            sys_metrics[c.id]['new_norm'] = LA.norm(updated_norm)
+            sys_metrics[c.id]['dist_from_prev'] = LA.norm(update)
             # sys_metrics[c.id][AVG_LOSS_KEY] = averaged_loss
 
         avg_loss = np.nan if len(losses) == 0 else \
@@ -152,6 +152,26 @@ class Server:
 
         for client in clients_to_test:
             c_metrics = client.test(self.model.cur_model, train_and_test, split_by_user=split_by_user, train_users=train_users)
+            metrics[client.id] = c_metrics
+
+        return metrics
+    def test_clients(self, clients_to_test=None, train_and_test=True, split_by_user=False, train_users=True):
+        """Tests self.model on given clients.
+
+        Tests model on self.selected_clients if clients_to_test=None.
+
+        Args:
+            clients_to_test: list of Client objects.
+            train_and_test: If True, also measure metrics on training data
+        """
+        if clients_to_test is None:
+            clients_to_test = self.selected_clients
+        metrics = {}
+
+        # self.model.send_to(clients_to_test)
+
+        for client in clients_to_test:
+            c_metrics = client.test(client.model, train_and_test, split_by_user=split_by_user, train_users=train_users)
             metrics[client.id] = c_metrics
 
         return metrics

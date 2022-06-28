@@ -168,18 +168,32 @@ def main():
     # pdb.set_trace()
     all_ids, all_groups, all_num_train_samples, all_num_test_samples = server.get_clients_info(train_clients)  # TODO: only works for split by sample
     summary = None
+    client_summary = None
 
     def log_helper(iteration, path_for_validation, comm_rounds=None):
         if comm_rounds is None:
             comm_rounds = iteration
         nonlocal summary
+        nonlocal client_summary
         start_time = time.time()
         if args.no_logging:
             stat_metrics = None
         else:
-            stat_metrics = server.test_model(train_clients, train_and_test=True)
+            client_stat_metrics = server.test_clients(train_clients, train_and_test=False)
+            server_stat_metrics = server.test_model(train_clients, train_and_test=False)
 
-        summary_iter = print_metrics(iteration, comm_rounds, stat_metrics,
+
+        for c in client_stat_metrics.keys():
+            client_summary_iter = {}
+            client_summary_iter['iteration'] = iteration
+            client_summary_iter['client'] = c
+            client_summary_iter['accuracy'] = client_stat_metrics[c]['accuracy']
+            if iteration == 0 and c == 0:
+                client_summary = pd.Series(client_summary_iter).to_frame().T
+            else:
+                client_summary = client_summary.append(client_summary_iter, ignore_index=True)
+
+        summary_iter = print_metrics(iteration, comm_rounds, server_stat_metrics,
                                      all_num_train_samples, all_num_test_samples,
                                      time.time() - start_time)
         if iteration == 0:
@@ -187,6 +201,7 @@ def main():
         else:
             summary = summary.append(summary_iter, ignore_index=True)
             summary.to_csv(path_for_validation, mode='w', header=True, index=False)
+            client_summary.to_csv(path_for_validation.split('.')[0]+'_client.csv', mode='w', header=True, index=False)
         return summary_iter
 
     # Test untrained model on all clients
@@ -262,7 +277,8 @@ def main():
 
             # Logging
             #norm = _norm(server_model.model)
-            norm = np.linalg.norm(server_model.model.optimizer.w)
+            #TODO: Start here
+            norm = np.linalg.norm(server_model.model.optimizer.w - server_model.model.optimizer.w_on_last_update)
             for c in c_ids:
                 sys_metrics[c]['Server norm'] = norm
             writer_print_metrics(i, c_ids, sys_metrics, c_groups, c_num_test_samples, args.output_sys_file)
@@ -488,11 +504,10 @@ def setup_clients_new(dataset, model_name=None, model=None, validation=False, co
     # corrupted_clients = apply_corruption_all(train_clients, dataset, corruption, fraction_corrupt, seed)
 
     all_clients = {
-        'train_clients':train_clients
+        'train_clients': train_clients
     }
 
     return all_clients, None
-
 
 def setup_clients(dataset, model_name=None, model=None, validation=False, corruption=None, fraction_corrupt=0.1, seed=-1,
                   split_by_user=True, subsample_fraction=0.5, data_dir=None):

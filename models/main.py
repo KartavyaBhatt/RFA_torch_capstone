@@ -228,7 +228,6 @@ def main():
                                                                lmbda=regularization_param,
                                                                )
             updates = server.updates
-            writer_print_metrics(i, c_ids, sys_metrics, c_groups, c_num_test_samples, args.output_sys_file)
 
             # Diagnostics - 1
             if initial_avg_loss is None:
@@ -239,6 +238,7 @@ def main():
                 print('all average loss:', ['{:.3f}'.format(l) for l in losses])
                 print('selected_clients:', [c.id for c in server.selected_clients])
                 # print('corrupted_clients:', corrupted_client_ids)
+
 
             # Update server model
 
@@ -263,6 +263,9 @@ def main():
             # Logging
             #norm = _norm(server_model.model)
             norm = np.linalg.norm(server_model.model.optimizer.w)
+            for c in c_ids:
+                sys_metrics[c]['Server norm'] = norm
+            writer_print_metrics(i, c_ids, sys_metrics, c_groups, c_num_test_samples, args.output_sys_file)
             print('\t\t\tRound: {} AvgLoss: {:.3f} Norm: {:.2f} Time: {} Tot_time {}'.format(
                 i + 1, avg_loss, norm,
                 timedelta(seconds=round(time.time() - start_time)),

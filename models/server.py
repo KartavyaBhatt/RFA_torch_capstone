@@ -75,12 +75,14 @@ class Server:
             if lr is not None:
                 c._model.optimizer.learning_rate = lr
 
-            comp, num_samples, averaged_loss, update = c.train(num_epochs, batch_size, minibatch, lr)
+            comp, num_samples, averaged_loss, update, updated_norm = c.train(num_epochs, batch_size, minibatch, lr)
             sys_metrics[c.id][LOCAL_COMPUTATIONS_KEY] = comp
             losses.append(averaged_loss)
 
             self.updates.append((num_samples, update))
             sys_metrics[c.id][BYTES_WRITTEN_KEY] += self.model.size
+            from numpy import linalg as LA
+            sys_metrics[c.id]['new_norm'] = LA.norm(updated_norm)
             # sys_metrics[c.id][AVG_LOSS_KEY] = averaged_loss
 
         avg_loss = np.nan if len(losses) == 0 else \

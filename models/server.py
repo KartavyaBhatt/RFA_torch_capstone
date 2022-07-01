@@ -126,14 +126,14 @@ class Server:
                     self.updates[i] = (self.updates[i][0], u1)
 
 
-        num_comm_rounds, is_updated = self.model.update(self.updates, aggregation,
+        num_comm_rounds, is_updated, norm_from_prev = self.model.update(self.updates, aggregation,
                                                     max_update_norm=MAX_UPDATE_NORM,
                                                     maxiter=maxiter,
                                                     fraction_to_discard=fraction_to_discard,
                                                     norm_bound=norm_bound)
         self.total_num_comm_rounds += num_comm_rounds
         self.updates = []
-        return self.total_num_comm_rounds, is_updated
+        return self.total_num_comm_rounds, is_updated, norm_from_prev
 
     def test_model(self, clients_to_test=None, train_and_test=True, split_by_user=False, train_users=True):
         """Tests self.model on given clients.

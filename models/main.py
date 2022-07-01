@@ -230,8 +230,10 @@ def main():
             for i in "hierarchy,num_samples,bytes_written,bytes_read,local_computations".split(','):
                 sys_metrics[i] = None
             sys_metrics['dist_from_prev'] = c.model.optimizer.weights_norm()
+            sys_metrics['curr_weights'] = None
             norm = np.linalg.norm(server_model.model.optimizer.w)
-            sys_metrics['Server norm'] = norm
+            sys_metrics['server_prev_norm'] = norm
+            sys_metrics['server_norm'] = norm
             if flag:
                 summa = pd.Series(sys_metrics).to_frame().T
                 flag = False
@@ -276,7 +278,7 @@ def main():
 
             # Update server model
 
-            total_num_comm_rounds, is_updated = server.update_model(
+            total_num_comm_rounds, is_updated, norm_from_prev = server.update_model(
                 aggregation=args.aggregation,
                 corruption=args.corruption,
                 # corrupted_client_ids=corrupted_client_ids,
@@ -299,7 +301,8 @@ def main():
             #TODO: Start here
             norm = np.linalg.norm(server_model.model.optimizer.w)
             for c in c_ids:
-                sys_metrics[c]['Server norm'] = norm
+                sys_metrics[c]['server_prev_norm'] = norm_from_prev
+                sys_metrics[c]['server_norm'] = norm
             writer_print_metrics(i, c_ids, sys_metrics, c_groups, c_num_test_samples, args.output_sys_file)
             print('\t\t\tRound: {} AvgLoss: {:.3f} Norm: {:.2f} Time: {} Tot_time {}'.format(
                 i + 1, avg_loss, norm,
@@ -461,7 +464,7 @@ def parse_args():
                         default=0.1)
     parser.add_argument('--aggregation',
                         help='Aggregation technique used to combine updates or gradients',
-                        choices=[AGGR_MEAN, AGGR_GEO_MED, AGGR_TRIM_MEAN, AGGR_NORM_MEAN, AGGR_CO_MED, AGGR_KRUM],
+                        choices=[AGGR_MEAN, AGGR_GEO_MED, AGGR_TRIM_MEAN, AGGR_NORM_MEAN, AGGR_CO_MED, AGGR_KRUM, 'avg'],
                         default=AGGR_MEAN)
     parser.add_argument('--weiszfeld-maxiter',
                         type=int,

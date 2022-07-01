@@ -271,12 +271,14 @@ class ServerModel:
         elif aggregation == AGGR_KRUM:
             weighted_updates = self.multikrum_update(points, alphas, fraction_to_discard)
             num_comm_rounds = 1
+        elif aggregation == 'avg':
+            weighted_updates = np.mean(points, axis=0)
+            num_comm_rounds = 1
         else:
             raise ValueError('Unknown aggregation strategy: {}'.format(aggregation))
 
         # update_norm = np.linalg.norm([np.linalg.norm(v) for v in weighted_updates])
         update_norm = np.linalg.norm(weighted_updates)
-
         if max_update_norm is None or update_norm < max_update_norm:
             self.model.optimizer.w += np.array(weighted_updates)
             self.model.optimizer.reset_w(self.model.optimizer.w)  # update server model
@@ -284,7 +286,7 @@ class ServerModel:
         else:
             print('\t\t\tUpdate norm = {} is too large. Update rejected'.format(update_norm))
             updated = False
-        return num_comm_rounds, updated
+        return num_comm_rounds, updated, update_norm
 
     @staticmethod
     def multikrum_update(points, alphas, fraction_to_discard, do_averaging=True):

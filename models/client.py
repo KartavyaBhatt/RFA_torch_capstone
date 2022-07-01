@@ -34,16 +34,16 @@ class Client:
         """
         if minibatch is None:
             data = self.train_data
-            comp, update, averaged_loss = self.model.train(data, num_epochs, batch_size, lr)
+            comp, update, averaged_loss, weight = self.model.train(data, num_epochs, batch_size, lr)
         else:
             frac = min(1.0, minibatch)
             num_data = max(1, int(frac * len(self.train_data['x'])))
             # TODO: fix sampling from lists
             xs, ys = zip(*self.rng.sample(list(zip(self.train_data['x'], self.train_data['y'])), num_data))
             data = {'x': xs, 'y': ys}
-            comp, update, averaged_loss = self.model.train(data, num_epochs, num_data, lr)
+            comp, update, averaged_loss, weight = self.model.train(data, num_epochs, num_data, lr)
         num_train_samples = len(data['y'])
-        return comp, num_train_samples, averaged_loss, update
+        return comp, num_train_samples, averaged_loss, update, weight
 
     def test(self, model, train_and_test, split_by_user=True, train_users=True):
         """Tests model on self.eval_data.

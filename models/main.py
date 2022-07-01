@@ -30,6 +30,7 @@ from baseline_constants import (
 from baseline_constants import REGULARIZATION_PARAMS
 from client import Client
 from model import ServerModel
+from models.utils.torch_utils import torch_to_numpy
 from server import Server
 from utils.constants import DATASETS
 from utils.model_utils import read_data, preprocess_data_x, preprocess_data_y, batch_data, read_data_new
@@ -182,7 +183,6 @@ def main():
             client_stat_metrics = server.test_clients(train_clients, train_and_test=False)
             server_stat_metrics = server.test_model(train_clients, train_and_test=False)
 
-
         for c in client_stat_metrics.keys():
             client_summary_iter = {}
             client_summary_iter['iteration'] = iteration
@@ -219,6 +219,25 @@ def main():
         # Required for initial logging to be correct when initializing from non-zero weights
         if regularization_param is not None:
             server.model.model.optimizer.lmbda = regularization_param
+
+
+        #Temp code
+        sys_metrics = {}
+        flag = True
+        for c in train_clients:
+            sys_metrics['client_id'] = c.id
+            sys_metrics['round_number'] = -1
+            for i in "hierarchy,num_samples,bytes_written,bytes_read,local_computations".split(','):
+                sys_metrics[i] = None
+            sys_metrics['dist_from_prev'] = c.model.optimizer.weights_norm()
+            norm = np.linalg.norm(server_model.model.optimizer.w)
+            sys_metrics['Server norm'] = norm
+            if flag:
+                summa = pd.Series(sys_metrics).to_frame().T
+                flag = False
+            else:
+                summa = summa.append(sys_metrics, ignore_index=True)
+        summa.to_csv(args.output_sys_file, mode='w', header=True, index=False)
 
         # Initialize diagnostics
         s = log_helper(0, path_for_validation)
@@ -278,7 +297,7 @@ def main():
             # Logging
             #norm = _norm(server_model.model)
             #TODO: Start here
-            norm = np.linalg.norm(server_model.model.optimizer.w - server_model.model.optimizer.w_on_last_update)
+            norm = np.linalg.norm(server_model.model.optimizer.w)
             for c in c_ids:
                 sys_metrics[c]['Server norm'] = norm
             writer_print_metrics(i, c_ids, sys_metrics, c_groups, c_num_test_samples, args.output_sys_file)

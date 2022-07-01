@@ -58,7 +58,7 @@ def writer_print_metrics(
             current_client[metric] = metric_value
         client_data.loc[len(client_data)] = current_client
 
-    mode = 'w' if round_number == 0 else 'a'
+    mode = 'w' if round_number == -1 else 'a'
     writer_print_dataframe(client_data, path, mode)
 
 

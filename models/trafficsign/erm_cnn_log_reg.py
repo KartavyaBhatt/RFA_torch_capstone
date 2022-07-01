@@ -41,7 +41,6 @@ class ClientModel(Model):
         # return torch.from_numpy(np.asarray(raw_y_batch, dtype=np.float32), device=device)
         return torch.LongTensor(raw_y_batch).to(self.device)
 
-
 class ConvNetModel(torch.nn.Module):
     # model related to the one from 
     # https://github.com/krishnap25/RFA/blob/master/models/femnist/cnn.py
@@ -101,6 +100,9 @@ class ErmOptimizer(Optimizer):
         self.learning_rate = None
         self.lmbda = None
         self.model = model
+
+    def weights_norm(self):
+        return np.linalg.norm(torch_to_numpy(self.model.trainable_parameters()))
 
     def initialize_w(self):
         self.w = torch_to_numpy(self.model.trainable_parameters())

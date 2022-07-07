@@ -68,7 +68,8 @@ class Server:
         chosen_clients = clients
 
         for c in chosen_clients:
-            self.model.send_to([c])  # reset client model
+            if c.id != 123:
+                self.model.send_to([c])  # reset client model
             sys_metrics[c.id][BYTES_READ_KEY] += self.model.size
             if lmbda is not None:
                 c._model.optimizer.lmbda = lmbda
@@ -77,16 +78,17 @@ class Server:
 
             comp, num_samples, averaged_loss, update, weight = c.train(num_epochs, batch_size, minibatch, lr)
             sys_metrics[c.id][LOCAL_COMPUTATIONS_KEY] = comp
-            losses.append(averaged_loss)
+            if c.id != 123:
+                losses.append(averaged_loss)
+                self.updates.append((num_samples, update))
 
-            self.updates.append((num_samples, update))
             sys_metrics[c.id][BYTES_WRITTEN_KEY] += self.model.size
             sys_metrics[c.id]['dist_from_prev'] = np.linalg.norm(update)
             sys_metrics[c.id]['curr_weights'] = np.linalg.norm(weight)
             # sys_metrics[c.id][AVG_LOSS_KEY] = averaged_loss
 
         avg_loss = np.nan if len(losses) == 0 else \
-            np.average(losses, weights=[len(c.train_data['y']) for c in chosen_clients])
+            np.average(losses, weights=[len(c.train_data['y']) for c in chosen_clients if c.id != 123])
         return sys_metrics, avg_loss, losses
 
     def update_model(
@@ -151,10 +153,11 @@ class Server:
         self.model.send_to(clients_to_test)
 
         for client in clients_to_test:
-            c_metrics = client.test(self.model.cur_model, train_and_test, split_by_user=split_by_user, train_users=train_users)
+            c_metrics = client.test(self.model.cur_model, client.eval_data, train_and_test, split_by_user=split_by_user, train_users=train_users)
             metrics[client.id] = c_metrics
 
         return metrics
+
     def test_clients(self, clients_to_test=None, train_and_test=True, split_by_user=False, train_users=True):
         """Tests self.model on given clients.
 
@@ -171,8 +174,32 @@ class Server:
         # self.model.send_to(clients_to_test)
 
         for client in clients_to_test:
-            c_metrics = client.test(client.model, train_and_test, split_by_user=split_by_user, train_users=train_users)
+            c_metrics = client.test(client.model, None, train_and_test, split_by_user=split_by_user, train_users=train_users)
             metrics[client.id] = c_metrics
+
+        return metrics
+
+    def test_cross_clients(self, clients_to_test=None, train_and_test=True, split_by_user=False, train_users=True):
+        """Tests self.model on given clients.
+
+        Tests model on self.selected_clients if clients_to_test=None.
+
+        Args:
+            clients_to_test: list of Client objects.
+            train_and_test: If True, also measure metrics on training data
+        """
+        if clients_to_test is None:
+            clients_to_test = self.selected_clients
+        metrics = {}
+
+        # self.model.send_to(clients_to_test)
+
+        for client in clients_to_test:
+            metrics[client.id] = {}
+            for test_client in clients_to_test:
+                c_metrics = client.test(client.model, test_client.eval_data, train_and_test, split_by_user=split_by_user, train_users=train_users)
+                metrics[client.id][test_client.id] = c_metrics
+
 
         return metrics
 

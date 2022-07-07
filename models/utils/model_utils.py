@@ -5,6 +5,7 @@ from torchvision import transforms
 from tqdm import tqdm
 from PIL import Image
 from sklearn.model_selection import train_test_split
+import random
 
 # from .language_utils import word_to_indices, letter_to_vec, \
 #     bag_of_words, get_word_emb_arr, val_to_vec, split_line, \
@@ -135,16 +136,19 @@ def read_data_new(train_data_dirs, test_data_dirs):
         train_data: dictionary of train data
         test_data: dictionary of test data
     """
-    clientIDs = [0, 1, 2, 5, 10, 20]
+    clientIDs = [0, 1, 2, 5, 10, 20, 123]
     train_data = []
     test_data = []
-    train_data_dirs = ['/home/kb8077/RFA_torch_capstone/data/traffic_sign/train/',
+    train_data_dirs = ['/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation/',
                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss1/',
                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss2/',
                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer128loss5/',
                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer256loss10/',
                  '/home/kb8077/RFA_torch_capstone/data/traffic_sign/validation-distorted/buffer512loss20/']
 
+    random.seed(42)
+
+    # Preprocess according to RESNet
     preprocess = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
@@ -154,9 +158,11 @@ def read_data_new(train_data_dirs, test_data_dirs):
 
     for train_data_dir in tqdm(train_data_dirs, desc='Setting up clients'):
         train_class_dirs = os.listdir(train_data_dir)
-        imgs = []
-        labels = []
+        x_data = []
+        y_data = []
         for d in train_class_dirs:
+            imgs = []
+            labels = []
             train_files = os.listdir(os.path.join(train_data_dir, d))
             train_files = [f for f in train_files if f.endswith('.jpg')]
 
@@ -169,11 +175,34 @@ def read_data_new(train_data_dirs, test_data_dirs):
                 except OSError as error:
                     continue
                 labels.append(1 if d == 'stop_signs' else 0)
-        X_train, X_test, y_train, y_test = train_test_split(imgs, labels, test_size=0.33, random_state=42)
+
+            x_sub, y_sub = zip(*random.sample(list(zip(imgs, labels)), 67 if d == 'stop_signs' else 65))
+            x_data.extend(x_sub)
+            y_data.extend(y_sub)
+            # x_data.extend(imgs)
+            # y_data.extend(labels)
+        X_train, X_test, y_train, y_test = train_test_split(x_data, y_data, test_size=0.33, random_state=42)
         train_data.append({'x': X_train, 'y': y_train})
         test_data.append({'x': X_test, 'y': y_test})
 
+    mix_train_data = []
+    mix_train_label = []
+    for data in train_data:
+        cl_data = data['x']
+        mix_train_data.extend(cl_data)
+        cl_label = data['y']
+        mix_train_label.extend(cl_label)
 
+    mix_test_data = []
+    mix_test_label = []
+    for data in test_data:
+        cl_data = data['x']
+        mix_test_data.extend(cl_data)
+        cl_label = data['y']
+        mix_test_label.extend(cl_label)
+
+    train_data.append({'x': mix_train_data, 'y':mix_train_label})
+    test_data.append({'x':mix_test_data, 'y':mix_test_label})
     # test_class_files = os.listdir(test_data_dir)
     # for d in test_class_files:
     #     test_files = os.listdir(os.path.join(test_data_dir, d))

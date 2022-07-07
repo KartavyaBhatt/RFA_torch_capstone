@@ -45,7 +45,7 @@ class Client:
         num_train_samples = len(data['y'])
         return comp, num_train_samples, averaged_loss, update, weight
 
-    def test(self, model, train_and_test, split_by_user=True, train_users=True):
+    def test(self, model, eval_data, train_and_test, split_by_user=True, train_users=True):
         """Tests model on self.eval_data.
         Args:
             model: model to measure metrics on
@@ -61,7 +61,9 @@ class Client:
                 return model.test(self.eval_data, split_by_user=split_by_user,
                                   train_users=train_users)
         else:
-            return model.test(self.eval_data, self.train_data if train_and_test else None, split_by_user=split_by_user,
+            return model.test(eval_data if eval_data is not None else self.eval_data,
+                              self.train_data if train_and_test else None,
+                              split_by_user=split_by_user,
                               train_users=train_users)
 
     def reinit_model(self):

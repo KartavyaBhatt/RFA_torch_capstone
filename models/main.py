@@ -180,18 +180,21 @@ def main():
         if args.no_logging:
             stat_metrics = None
         else:
-            client_stat_metrics = server.test_clients(train_clients, train_and_test=False)
+            # client_stat_metrics = server.test_clients(train_clients, train_and_test=False)
+            client_stat_metrics = server.test_cross_clients(train_clients, train_and_test=False)
             server_stat_metrics = server.test_model(train_clients, train_and_test=False)
 
         for c in client_stat_metrics.keys():
-            client_summary_iter = {}
-            client_summary_iter['iteration'] = iteration
-            client_summary_iter['client'] = c
-            client_summary_iter['accuracy'] = client_stat_metrics[c]['accuracy']
-            if iteration == 0 and c == 0:
-                client_summary = pd.Series(client_summary_iter).to_frame().T
-            else:
-                client_summary = client_summary.append(client_summary_iter, ignore_index=True)
+            for test_client in client_stat_metrics[c].keys():
+                client_summary_iter = {}
+                client_summary_iter['iteration'] = iteration
+                client_summary_iter['client'] = c
+                client_summary_iter['tested_on_client'] = test_client
+                client_summary_iter['accuracy'] = client_stat_metrics[c][test_client]['accuracy']
+                if iteration == 0 and c == 0:
+                    client_summary = pd.Series(client_summary_iter).to_frame().T
+                else:
+                    client_summary = client_summary.append(client_summary_iter, ignore_index=True)
 
         summary_iter = print_metrics(iteration, comm_rounds, server_stat_metrics,
                                      all_num_train_samples, all_num_test_samples,
@@ -298,7 +301,6 @@ def main():
 
             # Logging
             #norm = _norm(server_model.model)
-            #TODO: Start here
             norm = np.linalg.norm(server_model.model.optimizer.w)
             for c in c_ids:
                 sys_metrics[c]['server_prev_norm'] = norm_from_prev

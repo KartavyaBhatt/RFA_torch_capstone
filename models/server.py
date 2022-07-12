@@ -68,8 +68,8 @@ class Server:
         chosen_clients = clients
 
         for c in chosen_clients:
-            if c.id != 123:
-                self.model.send_to([c])  # reset client model
+            # if c.id != 123:
+                # self.model.send_to([c])  # reset client model
             sys_metrics[c.id][BYTES_READ_KEY] += self.model.size
             if lmbda is not None:
                 c._model.optimizer.lmbda = lmbda

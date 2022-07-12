@@ -196,6 +196,8 @@ class ServerModel:
         """
         var_vals = {}
         for c in clients:
+            if c.id == 123:
+                pass
             c.model.optimizer.reset_w(self.model.optimizer.w)
             c.model.size = self.model.optimizer.size()
 

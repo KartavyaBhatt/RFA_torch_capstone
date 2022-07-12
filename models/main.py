@@ -79,24 +79,28 @@ def main():
     print(args)
     client_model = ClientModel(*model_params, seed=args.seed)
     server_model = ServerModel(ClientModel(*model_params, seed=args.seed - 1))
-    # Set device
-    if args.gpu is not None and args.gpu >= 0 and args.gpu <= 4:
-        device = torch.device(f'cuda:{args.gpu}')
-    else:
-        device = torch.device('cpu')
-    if hasattr(client_model, 'set_device'):
-        client_model.set_device(device)
-        server_model.model.set_device(device)
+
 
     # Create server
     server = Server(server_model)
 
     # Create clients
     clients, _ = setup_clients_new(args.dataset, model_name=args.model,
-                                                  model=client_model, validation=args.validation,
+                                                  model=ClientModel,
+                                                  model_params=model_params, validation=args.validation,
                                                   corruption=args.corruption, fraction_corrupt=args.fraction_corrupt,
                                                   seed=args.seed, split_by_user=args.split_by_user,
                                                   data_dir=args.data_dir)
+
+    # Set device
+    if args.gpu is not None and args.gpu >= 0 and args.gpu <= 4:
+        device = torch.device(f'cuda:{args.gpu}')
+    else:
+        device = torch.device('cpu')
+    if hasattr(client_model, 'set_device'):
+        server_model.model.set_device(device)
+        for c in clients['train_clients']:
+            c.model.set_device(device)
 
     train_clients = clients['train_clients']
     if args.split_by_user:
@@ -180,8 +184,8 @@ def main():
         if args.no_logging:
             stat_metrics = None
         else:
-            # client_stat_metrics = server.test_clients(train_clients, train_and_test=False)
-            client_stat_metrics = server.test_cross_clients(train_clients, train_and_test=False)
+            client_stat_metrics = server.test_clients(train_clients, train_and_test=False)
+            # client_stat_metrics = server.test_cross_clients(train_clients, train_and_test=False)
             server_stat_metrics = server.test_model(train_clients, train_and_test=False)
 
         for c in client_stat_metrics.keys():
@@ -189,9 +193,10 @@ def main():
                 client_summary_iter = {}
                 client_summary_iter['iteration'] = iteration
                 client_summary_iter['client'] = c
-                client_summary_iter['tested_on_client'] = test_client
-                client_summary_iter['accuracy'] = client_stat_metrics[c][test_client]['accuracy']
-                if iteration == 0 and c == 0:
+                # client_summary_iter['tested_on_client'] = test_client
+                # client_summary_iter['accuracy'] = client_stat_metrics[c][test_client]['accuracy']
+                client_summary_iter['accuracy'] = client_stat_metrics[c]['accuracy']
+                if client_summary is None:
                     client_summary = pd.Series(client_summary_iter).to_frame().T
                 else:
                     client_summary = client_summary.append(client_summary_iter, ignore_index=True)
@@ -488,7 +493,7 @@ def parse_args():
         print('Random seed not provided. Using {} as seed'.format(args.seed))
     return args
 
-def setup_clients_new(dataset, model_name=None, model=None, validation=False, corruption=None, fraction_corrupt=0.1, seed=-1,
+def setup_clients_new(dataset, model_name=None, model=None, model_params=None, validation=False, corruption=None, fraction_corrupt=0.1, seed=-1,
                   split_by_user=True, subsample_fraction=0.5, data_dir=None):
     """Instantiates clients based on given train and test data directories.
         If validation is True, use part of training set as validation set
@@ -522,8 +527,9 @@ def setup_clients_new(dataset, model_name=None, model=None, validation=False, co
 
         # train_data_u = {'x': train_data_u_x, 'y': train_data_u_y}
         # test_data_u = {'x': test_data_u_x, 'y': test_data_u_y}
+        client_model = model(*model_params, seed=seed)
 
-        train_clients.append(Client(client_id=client, group=None, train_data=trainData, eval_data=testData, model=model, dataset=dataset))
+        train_clients.append(Client(client_id=client, group=None, train_data=trainData, eval_data=testData, model=client_model, dataset=dataset))
     # all_clients = [Client(u, g, train_data[u], test_data[u], model) for u, g in zip(users, groups)] # old code
     # corrupted_clients = apply_corruption_all(train_clients, dataset, corruption, fraction_corrupt, seed)
 

@@ -176,11 +176,12 @@ def read_data_new(train_data_dirs, test_data_dirs):
                     continue
                 labels.append(1 if d == 'stop_signs' else 0)
 
-            x_sub, y_sub = zip(*random.sample(list(zip(imgs, labels)), 67 if d == 'stop_signs' else 65))
-            x_data.extend(x_sub)
-            y_data.extend(y_sub)
-            # x_data.extend(imgs)
-            # y_data.extend(labels)
+            # Get equal number images for each client
+            # x_sub, y_sub = zip(*random.sample(list(zip(imgs, labels)), 67 if d == 'stop_signs' else 65))
+            # x_data.extend(x_sub)
+            # y_data.extend(y_sub)
+            x_data.extend(imgs)
+            y_data.extend(labels)
         X_train, X_test, y_train, y_test = train_test_split(x_data, y_data, test_size=0.33, random_state=42)
         train_data.append({'x': X_train, 'y': y_train})
         test_data.append({'x': X_test, 'y': y_test})
@@ -213,7 +214,7 @@ def read_data_new(train_data_dirs, test_data_dirs):
     #         test_data['x'].append(np.array(x))
     #         test_data['y'].append(1 if d == 'stop_signs' else 0)
 
-    return clientIDs, train_data, test_data
+    return clientIDs[:-1], train_data[:-1], test_data[:-1]
 
 
 def preprocess_data_x(list_inputs, dataset='femnist', center=False,

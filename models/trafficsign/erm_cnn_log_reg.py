@@ -15,11 +15,11 @@ class ClientModel(Model):
     def __init__(self, lr, num_classes,
                  max_batch_size=None, seed=None, optimizer=None):
         self.num_classes = num_classes
-        self.device = torch.device('cpu') # TODO: set device throughout
-        model = ResNetModel().to(self.device)
-        optimizer = ErmOptimizer(model)
+        self.device = torch.device('cuda:0') # TODO: set device throughout
+        self.model = ResNetModel().to(self.device)
+        self.optimizer = ErmOptimizer(self.model)
         super(ClientModel, self).__init__(lr, seed, max_batch_size,
-                                          optimizer=optimizer)
+                                          optimizer=self.optimizer)
 
     def set_device(self, device):
         self.device = device
@@ -120,6 +120,7 @@ class ErmOptimizer(Optimizer):
 
     def update_w(self):
         self.w_on_last_update = self.w
+        numpy_to_torch(self.w, self.model)
 
     def _l2_reg_penalty(self):
         # TODO: note: no l2penalty is applied to the convnet

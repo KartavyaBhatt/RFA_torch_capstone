@@ -68,8 +68,6 @@ class Server:
         chosen_clients = clients
 
         for c in chosen_clients:
-            # if c.id != 123:
-                # self.model.send_to([c])  # reset client model
             sys_metrics[c.id][BYTES_READ_KEY] += self.model.size
             if lmbda is not None:
                 c._model.optimizer.lmbda = lmbda
@@ -150,7 +148,7 @@ class Server:
             clients_to_test = self.selected_clients
         metrics = {}
 
-        self.model.send_to(clients_to_test)
+        # self.model.send_to(clients_to_test)
 
         for client in clients_to_test:
             c_metrics = client.test(self.model.cur_model, client.eval_data, train_and_test, split_by_user=split_by_user, train_users=train_users)

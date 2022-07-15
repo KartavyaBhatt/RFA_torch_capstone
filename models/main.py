@@ -184,8 +184,8 @@ def main():
         if args.no_logging:
             stat_metrics = None
         else:
-            client_stat_metrics = server.test_clients(train_clients, train_and_test=False)
-            # client_stat_metrics = server.test_cross_clients(train_clients, train_and_test=False)
+            # client_stat_metrics = server.test_clients(train_clients, train_and_test=False)
+            client_stat_metrics = server.test_cross_clients(train_clients, train_and_test=False)
             server_stat_metrics = server.test_model(train_clients, train_and_test=False)
 
         for c in client_stat_metrics.keys():
@@ -193,21 +193,24 @@ def main():
                 client_summary_iter = {}
                 client_summary_iter['iteration'] = iteration
                 client_summary_iter['client'] = c
-                # client_summary_iter['tested_on_client'] = test_client
-                # client_summary_iter['accuracy'] = client_stat_metrics[c][test_client]['accuracy']
-                client_summary_iter['accuracy'] = client_stat_metrics[c]['accuracy']
+                client_summary_iter['tested_on_client'] = test_client
+                client_summary_iter['accuracy'] = client_stat_metrics[c][test_client]['accuracy']
+                # client_summary_iter['accuracy'] = client_stat_metrics[c]['accuracy']
                 if client_summary is None:
                     client_summary = pd.Series(client_summary_iter).to_frame().T
                 else:
                     client_summary = client_summary.append(client_summary_iter, ignore_index=True)
 
-        summary_iter = print_metrics(iteration, comm_rounds, server_stat_metrics,
+        summary_iter = print_metrics_all_clients(iteration, comm_rounds, server_stat_metrics,
                                      all_num_train_samples, all_num_test_samples,
                                      time.time() - start_time)
-        if iteration == 0:
-            summary = pd.Series(summary_iter).to_frame().T
+        if summary is None:
+            summary = pd.Series(summary_iter[0]).to_frame().T
+            for _ in summary_iter[1:]:
+                summary = summary.append(summary_iter, ignore_index=True)
         else:
-            summary = summary.append(summary_iter, ignore_index=True)
+            for _ in summary_iter:
+                summary = summary.append(summary_iter, ignore_index=True)
             summary.to_csv(path_for_validation, mode='w', header=True, index=False)
             client_summary.to_csv(path_for_validation.split('.')[0]+'_client.csv', mode='w', header=True, index=False)
         return summary_iter
@@ -251,7 +254,7 @@ def main():
 
         # Initialize diagnostics
         s = log_helper(0, path_for_validation)
-        initial_loss = s.get(OptimLoggingKeys.TRAIN_LOSS_KEY[0], None)
+        # initial_loss = s.get(OptimLoggingKeys.TRAIN_LOSS_KEY[0], None)
         initial_avg_loss = None
         num_no_progress = 0
 
@@ -274,14 +277,14 @@ def main():
             updates = server.updates
 
             # Diagnostics - 1
-            if initial_avg_loss is None:
-                initial_avg_loss = avg_loss
-            if avg_loss > 3 * initial_avg_loss and args.corruption != CORRUPTION_OMNISCIENT_KEY:
-                print('-'*50)
-                print('Abnormal loss encountered. Diagnostics:')
-                print('all average loss:', ['{:.3f}'.format(l) for l in losses])
-                print('selected_clients:', [c.id for c in server.selected_clients])
-                # print('corrupted_clients:', corrupted_client_ids)
+            # if initial_avg_loss is None:
+            #     initial_avg_loss = avg_loss
+            # if avg_loss > 3 * initial_avg_loss and args.corruption != CORRUPTION_OMNISCIENT_KEY:
+            #     print('-'*50)
+            #     print('Abnormal loss encountered. Diagnostics:')
+            #     print('all average loss:', ['{:.3f}'.format(l) for l in losses])
+            #     print('selected_clients:', [c.id for c in server.selected_clients])
+            #     # print('corrupted_clients:', corrupted_client_ids)
 
 
             # Update server model
@@ -325,13 +328,13 @@ def main():
                     or (args.corruption == CORRUPTION_OMNISCIENT_KEY and (i + 1) < 10)
             ):
                 s = log_helper(i + 1, path_for_validation, total_num_comm_rounds)
-                if OptimLoggingKeys.TRAIN_LOSS_KEY in s:
-                    if initial_loss is not None and s[OptimLoggingKeys.TRAIN_LOSS_KEY] > 3 * initial_loss:
-                        print('Loss > 3 * initial_loss. Exiting')
-                        break
-                    if math.isnan(s[OptimLoggingKeys.TRAIN_LOSS_KEY]):
-                        print('Loss NaN. Exiting')
-                        break
+                # if OptimLoggingKeys.TRAIN_LOSS_KEY in s:
+                #     if initial_loss is not None and s[OptimLoggingKeys.TRAIN_LOSS_KEY] > 3 * initial_loss:
+                #         print('Loss > 3 * initial_loss. Exiting')
+                #         break
+                #     if math.isnan(s[OptimLoggingKeys.TRAIN_LOSS_KEY]):
+                #         print('Loss NaN. Exiting')
+                #         break
 
             if (i + 1) % args.decay_lr_every == 0:
                 args.lr /= args.lr_decay
@@ -848,6 +851,37 @@ def print_metrics(iteration, comm_rounds, metrics, train_weights, test_weights, 
             output[metric] = avg_metric
             print('%s: %g' % (metric, avg_metric), end=', ')
         print('Time:', timedelta(seconds=round(elapsed_time)))
+    sys.stdout.flush()
+    return output
+
+def print_metrics_all_clients(iteration, comm_rounds, metrics, train_weights, test_weights, elapsed_time=0):
+    """Prints weighted averages of the given metrics.
+    Args:
+        iteration: current iteration number
+        comm_rounds: number of communication rounds
+        metrics: dict with client ids as keys. Each entry is a dict
+            with the metrics of that client.
+        train_weights: dict with client ids as keys. Each entry is the weight
+            for that client for training metrics.
+        test_weights: dict with client ids as keys. Each entry is the weight
+            for that client for testing metrics
+        elapsed_time: time taken for testing
+    """
+    output = []
+    curr_output = {'iteration': iteration, 'comm_rounds': comm_rounds}
+    individual = True
+    if metrics is None:
+        print(iteration, comm_rounds)
+    else:
+        if individual:
+            print(iteration, end=', ')
+            for c in metrics.keys():
+                curr_output = {'iteration': iteration, 'comm_rounds': comm_rounds}
+                curr_output['client_id'] = c
+                curr_output['client_accuracy'] = metrics[c]['test_accuracy']
+                output.append(curr_output)
+            print('Time:', timedelta(seconds=round(elapsed_time)))
+
     sys.stdout.flush()
     return output
 
